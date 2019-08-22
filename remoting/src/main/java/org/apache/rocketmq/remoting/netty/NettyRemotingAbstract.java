@@ -155,9 +155,13 @@ public abstract class NettyRemotingAbstract {
         if (cmd != null) {
             switch (cmd.getType()) {
                 case REQUEST_COMMAND:
+
+                    //处理请求信息
                     processRequestCommand(ctx, cmd);
                     break;
                 case RESPONSE_COMMAND:
+
+                    //处理响应信息
                     processResponseCommand(ctx, cmd);
                     break;
                 default:
@@ -190,19 +194,43 @@ public abstract class NettyRemotingAbstract {
      * @param cmd request command.
      */
     public void processRequestCommand(final ChannelHandlerContext ctx, final RemotingCommand cmd) {
+
+        /**
+         * 根据请求code
+         *
+         * 先从processorTable拿请求处理器，如果没拿到取defaultRequestProcessor，都拿不到，表示server不能处理改请求
+         *
+         * 每一个请求都有一个唯一的opaque 【每一个channel都有一个自增的id】
+         *
+         */
         final Pair<NettyRequestProcessor, ExecutorService> matched = this.processorTable.get(cmd.getCode());
         final Pair<NettyRequestProcessor, ExecutorService> pair = null == matched ? this.defaultRequestProcessor : matched;
         final int opaque = cmd.getOpaque();
 
         if (pair != null) {
+
+            /**
+             *  封装runnable 提交到线程池里面
+             */
+
             Runnable run = new Runnable() {
                 @Override
                 public void run() {
                     try {
+                        //处理请求前
                         doBeforeRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd);
+                        /**
+                         * 处理请求
+                         *
+                         * nameSrv 用的是org.apache.rocketmq.namesrv.processor.DefaultRequestProcessor
+                         * broker：
+                         *
+                         */
                         final RemotingCommand response = pair.getObject1().processRequest(ctx, cmd);
+                        //处理请求后
                         doAfterRpcHooks(RemotingHelper.parseChannelRemoteAddr(ctx.channel()), cmd, response);
 
+                        //不是oneway调用的方式，需要把响应消息从channel中回写回去
                         if (!cmd.isOnewayRPC()) {
                             if (response != null) {
                                 response.setOpaque(opaque);
@@ -222,6 +250,9 @@ public abstract class NettyRemotingAbstract {
                         log.error("process request exception", e);
                         log.error(cmd.toString());
 
+                        /*
+                         * 处理异常了，回写 错误信息回去
+                         */
                         if (!cmd.isOnewayRPC()) {
                             final RemotingCommand response = RemotingCommand.createResponseCommand(RemotingSysResponseCode.SYSTEM_ERROR,
                                 RemotingHelper.exceptionSimpleDesc(e));

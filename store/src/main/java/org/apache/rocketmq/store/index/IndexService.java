@@ -205,6 +205,7 @@ public class IndexService {
             DispatchRequest msg = req;
             String topic = msg.getTopic();
             String keys = msg.getKeys();
+            //防止重复存index信息
             if (msg.getCommitLogOffset() < endPhyOffset) {
                 return;
             }
@@ -246,6 +247,12 @@ public class IndexService {
     }
 
     private IndexFile putKey(IndexFile indexFile, DispatchRequest msg, String idxKey) {
+
+
+        /**
+         * 放到index文件中
+         * 如果放失败了尝试重新拿一个index文件，重新放
+         */
         for (boolean ok = indexFile.putKey(idxKey, msg.getCommitLogOffset(), msg.getStoreTimestamp()); !ok; ) {
             log.warn("Index file [" + indexFile.getFileName() + "] is full, trying to create another one");
 

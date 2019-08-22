@@ -48,6 +48,11 @@ public class MappedFileQueue {
 
     private volatile long storeTimestamp = 0;
 
+    /**
+     * @param storePath  路径
+     * @param mappedFileSize  mappedfile文件大小
+     * @param allocateMappedFileService  分配mappedfile的服务
+     */
     public MappedFileQueue(final String storePath, int mappedFileSize,
         AllocateMappedFileService allocateMappedFileService) {
         this.storePath = storePath;
@@ -57,6 +62,7 @@ public class MappedFileQueue {
 
     public void checkSelf() {
 
+        //检查文件大小是否符合设置的值
         if (!this.mappedFiles.isEmpty()) {
             Iterator<MappedFile> iterator = mappedFiles.iterator();
             MappedFile pre = null;
@@ -74,6 +80,11 @@ public class MappedFileQueue {
         }
     }
 
+    /**
+     * 恩局时间戳获取
+     * @param timestamp
+     * @return
+     */
     public MappedFile getMappedFileByTime(final long timestamp) {
         Object[] mfs = this.copyMappedFiles(0);
 
@@ -101,6 +112,7 @@ public class MappedFileQueue {
         return mfs;
     }
 
+    //清理文件
     public void truncateDirtyFiles(long offset) {
         List<MappedFile> willRemoveFiles = new ArrayList<MappedFile>();
 
@@ -121,6 +133,7 @@ public class MappedFileQueue {
         this.deleteExpiredFile(willRemoveFiles);
     }
 
+    //删除过期的文件
     void deleteExpiredFile(List<MappedFile> files) {
 
         if (!files.isEmpty()) {
@@ -144,6 +157,7 @@ public class MappedFileQueue {
         }
     }
 
+    //加载已经存在的文件
     public boolean load() {
         File dir = new File(this.storePath);
         File[] files = dir.listFiles();
@@ -191,6 +205,12 @@ public class MappedFileQueue {
         return 0;
     }
 
+    /**
+     * 获取最后一个mappedfile
+     * @param startOffset 开始位置
+     * @param needCreate  需要创建
+     * @return
+     */
     public MappedFile getLastMappedFile(final long startOffset, boolean needCreate) {
         long createOffset = -1;
         MappedFile mappedFileLast = getLastMappedFile();
@@ -285,6 +305,7 @@ public class MappedFileQueue {
         return true;
     }
 
+    //获取最小的offset
     public long getMinOffset() {
 
         if (!this.mappedFiles.isEmpty()) {
@@ -299,6 +320,7 @@ public class MappedFileQueue {
         return -1;
     }
 
+    //获取最大的offset
     public long getMaxOffset() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {
@@ -307,6 +329,7 @@ public class MappedFileQueue {
         return 0;
     }
 
+    //获取最大的可写的位置
     public long getMaxWrotePosition() {
         MappedFile mappedFile = getLastMappedFile();
         if (mappedFile != null) {
@@ -422,12 +445,24 @@ public class MappedFileQueue {
         return deleteCount;
     }
 
+
+    /**
+     *
+     * @param flushLeastPages  至少刷多少页
+     * @return
+     */
     public boolean flush(final int flushLeastPages) {
         boolean result = true;
+
+        //获取需要刷盘的文件
         MappedFile mappedFile = this.findMappedFileByOffset(this.flushedWhere, this.flushedWhere == 0);
         if (mappedFile != null) {
             long tmpTimeStamp = mappedFile.getStoreTimestamp();
+
+            //刷盘
             int offset = mappedFile.flush(flushLeastPages);
+
+            //已经刷到哪了
             long where = mappedFile.getFileFromOffset() + offset;
             result = where == this.flushedWhere;
             this.flushedWhere = where;

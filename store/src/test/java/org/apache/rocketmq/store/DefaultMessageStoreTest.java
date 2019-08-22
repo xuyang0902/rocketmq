@@ -60,13 +60,20 @@ public class DefaultMessageStoreTest {
 
     @Before
     public void init() throws Exception {
+        //设置存储文件路径
+        System.setProperty("user.home","/Users/tbj/usr/local/tmp/mqtest");
+
+
         StoreHost = new InetSocketAddress(InetAddress.getLocalHost(), 8123);
         BornHost = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0);
+
 
         messageStore = buildMessageStore();
         boolean load = messageStore.load();
         assertTrue(load);
         messageStore.start();
+
+
     }
 
     @Test(expected = OverlappingFileLockException.class)

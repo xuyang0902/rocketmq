@@ -92,6 +92,10 @@ public class MQClientInstance {
     private final int instanceIndex;
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
+
+    /**
+     * 存放生产者信息 key ：groupName value：DefaultMQProducerImpl
+     */
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
@@ -146,6 +150,12 @@ public class MQClientInstance {
         this.pullMessageService = new PullMessageService(this);
 
         this.rebalanceService = new RebalanceService(this);
+
+
+        /**
+         * mqclientinstance对象里面 又创建了defaultMQProducer？？   producerGroup：CLIENT_INNER_PRODUCER_GROUP
+         * 而且把业务代码的defaultMQProducer的配置信息copy过来
+         */
 
         this.defaultMQProducer = new DefaultMQProducer(MixAll.CLIENT_INNER_PRODUCER_GROUP);
         this.defaultMQProducer.resetClientConfig(clientConfig);
@@ -625,6 +635,10 @@ public class MQClientInstance {
                             }
                         }
                     } else {
+
+                        /**
+                         * 从namesrv获取topicTouteData
+                         */
                         topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
                     }
                     if (topicRouteData != null) {
@@ -640,6 +654,10 @@ public class MQClientInstance {
                             TopicRouteData cloneTopicRouteData = topicRouteData.cloneTopicRouteData();
 
                             for (BrokerData bd : topicRouteData.getBrokerDatas()) {
+
+                                /**
+                                 * 从nameSrv获取broker信息
+                                 */
                                 this.brokerAddrTable.put(bd.getBrokerName(), bd.getBrokerAddrs());
                             }
 

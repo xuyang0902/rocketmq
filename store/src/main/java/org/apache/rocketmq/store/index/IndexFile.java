@@ -91,6 +91,14 @@ public class IndexFile {
 
     public boolean putKey(final String key, final long phyOffset, final long storeTimestamp) {
         if (this.indexHeader.getIndexCount() < this.indexNum) {
+
+            /**
+             * key.hachcode取放在哪个槽
+             *
+             * 计算槽的位置 每个槽位的大小是4？
+             *
+             * 槽位 = 40 + 第几个槽 * 4
+             */
             int keyHash = indexKeyHashMethod(key);
             int slotPos = keyHash % this.hashSlotNum;
             int absSlotPos = IndexHeader.INDEX_HEADER_SIZE + slotPos * hashSlotSize;
@@ -118,15 +126,22 @@ public class IndexFile {
                     timeDiff = 0;
                 }
 
+                //索引位置 = 头 + 槽 + 索引的数据
                 int absIndexPos =
                     IndexHeader.INDEX_HEADER_SIZE + this.hashSlotNum * hashSlotSize
                         + this.indexHeader.getIndexCount() * indexSize;
 
+                /**
+                 * 单个索引大熊啊是 4 + 8 + 4 +  4
+                 * keyhash值，commitlog的位置，时间， 这个槽位一共存了多少个索引
+                 *
+                 */
                 this.mappedByteBuffer.putInt(absIndexPos, keyHash);
                 this.mappedByteBuffer.putLong(absIndexPos + 4, phyOffset);
                 this.mappedByteBuffer.putInt(absIndexPos + 4 + 8, (int) timeDiff);
                 this.mappedByteBuffer.putInt(absIndexPos + 4 + 8 + 4, slotValue);
 
+                //当前槽位如果有冲突的话，这个位置保存的是前面一个索引的个数
                 this.mappedByteBuffer.putInt(absSlotPos, this.indexHeader.getIndexCount());
 
                 if (this.indexHeader.getIndexCount() <= 1) {

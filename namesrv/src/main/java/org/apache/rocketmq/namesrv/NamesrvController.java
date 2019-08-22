@@ -77,17 +77,20 @@ public class NamesrvController {
 
         this.kvConfigManager.load();
 
+        // netty服务端启动
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
+        // 注册netty-server 的 [handler处理器]
         this.registerProcessor();
 
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
             public void run() {
+                // routeInfo定期清理失效的broker信息   没10秒扫描一次
                 NamesrvController.this.routeInfoManager.scanNotActiveBroker();
             }
         }, 5, 10, TimeUnit.SECONDS);
@@ -96,6 +99,7 @@ public class NamesrvController {
 
             @Override
             public void run() {
+               // 每隔10分钟打印 namesrv的配置信息
                 NamesrvController.this.kvConfigManager.printAllPeriodically();
             }
         }, 1, 10, TimeUnit.MINUTES);
@@ -148,11 +152,18 @@ public class NamesrvController {
                 this.remotingExecutor);
         } else {
 
+
+            /*
+             * 注册默认的请求处理器和线程池
+             */
+
             this.remotingServer.registerDefaultProcessor(new DefaultRequestProcessor(this), this.remotingExecutor);
         }
     }
 
     public void start() throws Exception {
+
+        //netty -server.start() 端口启动 boss work线程开始工作
         this.remotingServer.start();
 
         if (this.fileWatchService != null) {

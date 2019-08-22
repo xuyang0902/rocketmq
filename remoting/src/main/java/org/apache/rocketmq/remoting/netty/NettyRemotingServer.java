@@ -193,6 +193,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                 }
             });
 
+        //准备共享的handler
         prepareSharableHandlers();
 
         ServerBootstrap childHandler =
@@ -209,22 +210,29 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
                     @Override
                     public void initChannel(SocketChannel ch) throws Exception {
                         ch.pipeline()
+                                //ssl配置
                             .addLast(defaultEventExecutorGroup, HANDSHAKE_HANDLER_NAME, handshakeHandler)
+                                //encode decode编码
                             .addLast(defaultEventExecutorGroup,
                                 encoder,
                                 new NettyDecoder(),
+                                //心跳检测
                                 new IdleStateHandler(0, 0, nettyServerConfig.getServerChannelMaxIdleTimeSeconds()),
+                                //连接管理器
                                 connectionManageHandler,
+                                //业务handler
                                 serverHandler
                             );
                     }
                 });
 
+        //使用内存池
         if (nettyServerConfig.isServerPooledByteBufAllocatorEnable()) {
             childHandler.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
         }
 
         try {
+            //开启服务
             ChannelFuture sync = this.serverBootstrap.bind().sync();
             InetSocketAddress addr = (InetSocketAddress) sync.channel().localAddress();
             this.port = addr.getPort();
@@ -417,6 +425,7 @@ public class NettyRemotingServer extends NettyRemotingAbstract implements Remoti
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) throws Exception {
+            //接受请求信息
             processMessageReceived(ctx, msg);
         }
     }

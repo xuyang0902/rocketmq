@@ -45,14 +45,34 @@ import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 import org.apache.rocketmq.common.sysflag.TopicSysFlag;
 import org.apache.rocketmq.remoting.common.RemotingUtil;
 
+
+/**
+ * 路由信息管理器
+ */
 public class RouteInfoManager {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final static long BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2;
+
+
+    //读写锁
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    /**
+     * topic队列表     QueueData【brokerName，读队列，写队列个数，等信息】
+     */
     private final HashMap<String/* topic */, List<QueueData>> topicQueueTable;
+
+    /**
+     * broker表  BrokerData【属于哪个集群，名称，brokerId:brokerAddr】
+     */
     private final HashMap<String/* brokerName */, BrokerData> brokerAddrTable;
     private final HashMap<String/* clusterName */, Set<String/* brokerName */>> clusterAddrTable;
+
+    /**
+     * broker存活表
+     */
     private final HashMap<String/* brokerAddr */, BrokerLiveInfo> brokerLiveTable;
+
     private final HashMap<String/* brokerAddr */, List<String>/* Filter Server */> filterServerTable;
 
     public RouteInfoManager() {

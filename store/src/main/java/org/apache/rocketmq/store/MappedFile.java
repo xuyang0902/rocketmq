@@ -41,28 +41,51 @@ import org.apache.rocketmq.store.config.FlushDiskType;
 import org.apache.rocketmq.store.util.LibC;
 import sun.nio.ch.DirectBuffer;
 
+/**
+ * mmap对应的文件对象
+ */
 public class MappedFile extends ReferenceResource {
+
     public static final int OS_PAGE_SIZE = 1024 * 4;
     protected static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
 
     private static final AtomicLong TOTAL_MAPPED_VIRTUAL_MEMORY = new AtomicLong(0);
 
     private static final AtomicInteger TOTAL_MAPPED_FILES = new AtomicInteger(0);
+    //写到的位置
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
+    //commit的位置   commit的意思是 从writebuffer放到fileChannel
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
+    //输盘的位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
+    //文件大小
     protected int fileSize;
+    //fileChannel
     protected FileChannel fileChannel;
     /**
      * Message will put to here first, and then reput to FileChannel if writeBuffer is not null.
+     * 消息会先放在这里，如果writeBuffer不为空 然后重新放到fileChannel
+     *
+     * 只有开启了transientStorePool的才会有这个
+     *
+     * 只有开启transientStorePoolEnable= true  且master是异步刷盘的，才会有开启这个内存池
+     * return transientStorePoolEnable && FlushDiskType.ASYNC_FLUSH == getFlushDiskType() && BrokerRole.SLAVE != getBrokerRole();
      */
     protected ByteBuffer writeBuffer = null;
+
+    //存储内存池
     protected TransientStorePool transientStorePool = null;
+    //文件名称  20位长度，就是就是fileFromOffset
     private String fileName;
+    //文件起始地址
     private long fileFromOffset;
+    //文件
     private File file;
+    //mmap映射
     private MappedByteBuffer mappedByteBuffer;
+    //存储时间戳
     private volatile long storeTimestamp = 0;
+    //在队列中第一次创建？？
     private boolean firstCreateInQueue = false;
 
     public MappedFile() {
@@ -200,13 +223,21 @@ public class MappedFile extends ReferenceResource {
         assert messageExt != null;
         assert cb != null;
 
+        //获取到mappedfile的当前写到的位置
         int currentPos = this.wrotePosition.get();
 
+        //如果没有写满，还可以继续写
         if (currentPos < this.fileSize) {
+            //内存空间的 存放数据的
             ByteBuffer byteBuffer = writeBuffer != null ? writeBuffer.slice() : this.mappedByteBuffer.slice();
             byteBuffer.position(currentPos);
             AppendMessageResult result;
             if (messageExt instanceof MessageExtBrokerInner) {
+
+                /**
+                 * 需要看callback怎么调用
+                 * 文件开始位置，bytebufer存放数据，文件剩余最大的空闲大小，信息体
+                 */
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);
@@ -217,6 +248,8 @@ public class MappedFile extends ReferenceResource {
             this.storeTimestamp = result.getStoreTimestamp();
             return result;
         }
+
+         //写满了，报错，上层有判断的，一般不会走到这
         log.error("MappedFile.appendMessage return null, wrotePosition: {} fileSize: {}", currentPos, this.fileSize);
         return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
     }
@@ -269,8 +302,10 @@ public class MappedFile extends ReferenceResource {
      * @return The current flushed position
      */
     public int flush(final int flushLeastPages) {
+        //是否可以刷盘，文件满了，wroten位置 > flush的位置
         if (this.isAbleToFlush(flushLeastPages)) {
             if (this.hold()) {
+                //获取刷盘的位置，其实可能是不准的，这里获取到force的阶段 还有数据append进来
                 int value = getReadPosition();
 
                 try {
@@ -402,11 +437,16 @@ public class MappedFile extends ReferenceResource {
         int readPosition = getReadPosition();
         if (pos < readPosition && pos >= 0) {
             if (this.hold()) {
+
+                /*
+                 * 这串代码的意思其实 就是取pos到readPosition那一段的数据
+                 */
                 ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
                 byteBuffer.position(pos);
                 int size = readPosition - pos;
                 ByteBuffer byteBufferNew = byteBuffer.slice();
                 byteBufferNew.limit(size);
+
                 return new SelectMappedBufferResult(this.fileFromOffset + pos, byteBufferNew, size, this);
             }
         }

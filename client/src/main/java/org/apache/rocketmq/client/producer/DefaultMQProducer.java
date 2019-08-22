@@ -64,6 +64,10 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Wrapping internal implementations for virtually all methods presented in this class.
+     *
+     *
+     * netty客户端
+     * 主要用于和namesrc和broker通信
      */
     protected final transient DefaultMQProducerImpl defaultMQProducerImpl;
 
@@ -81,6 +85,8 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
 
     /**
      * Just for testing or demo program
+     *
+     * 自动创建topic
      */
     private String createTopicKey = MixAll.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
@@ -212,6 +218,12 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public DefaultMQProducer(final String namespace, final String producerGroup, RPCHook rpcHook) {
         this.namespace = namespace;
         this.producerGroup = producerGroup;
+
+        /**
+         * 创建默认的mq生产者实现【带有 DefaultMQProducer的实例对象】
+         *
+         *
+         */
         defaultMQProducerImpl = new DefaultMQProducerImpl(this, rpcHook);
     }
 
@@ -281,6 +293,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      */
     @Override
     public void start() throws MQClientException {
+
         this.setProducerGroup(withNamespace(this.producerGroup));
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {
@@ -334,6 +347,10 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     @Override
     public SendResult send(
         Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
+        /**
+         * 检查信息格式 topic带上namespace
+         */
         Validators.checkMessage(msg, this);
         msg.setTopic(withNamespace(msg.getTopic()));
         return this.defaultMQProducerImpl.send(msg);

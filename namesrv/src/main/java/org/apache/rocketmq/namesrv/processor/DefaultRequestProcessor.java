@@ -88,6 +88,11 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
             case RequestCode.QUERY_DATA_VERSION:
                 return queryBrokerTopicConfig(ctx, request);
             case RequestCode.REGISTER_BROKER:
+
+                /*
+                 * broker上线
+                 */
+
                 Version brokerVersion = MQVersion.value2Version(request.getVersion());
                 if (brokerVersion.ordinal() >= MQVersion.Version.V3_0_11.ordinal()) {
                     return this.registerBrokerWithFilterServer(ctx, request);
@@ -95,10 +100,19 @@ public class DefaultRequestProcessor implements NettyRequestProcessor {
                     return this.registerBroker(ctx, request);
                 }
             case RequestCode.UNREGISTER_BROKER:
+
+                /*
+                 * broker下线
+                 */
                 return this.unregisterBroker(ctx, request);
             case RequestCode.GET_ROUTEINTO_BY_TOPIC:
+
+                /*
+                 * 根据topic获取路由信息
+                 */
                 return this.getRouteInfoByTopic(ctx, request);
-            case RequestCode.GET_BROKER_CLUSTER_INFO:
+
+                case RequestCode.GET_BROKER_CLUSTER_INFO:
                 return this.getBrokerClusterInfo(ctx, request);
             case RequestCode.WIPE_WRITE_PERM_OF_BROKER:
                 return this.wipeWritePermOfBroker(ctx, request);

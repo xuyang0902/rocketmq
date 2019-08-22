@@ -76,10 +76,19 @@ public class TopicPublishInfo {
                 if (pos < 0)
                     pos = 0;
                 MessageQueue mq = this.messageQueueList.get(pos);
+
+
+                /*
+                 * 上一个broker发送失败的话，换一个发
+                 */
                 if (!mq.getBrokerName().equals(lastBrokerName)) {
                     return mq;
                 }
             }
+
+            /*
+             * 轮训队列发
+             */
             return selectOneMessageQueue();
         }
     }

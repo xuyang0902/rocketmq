@@ -96,6 +96,11 @@ public class ClientConfig {
     }
 
 
+    /**
+     * 带上namespace
+     * @param resource
+     * @return
+     */
     public String withNamespace(String resource) {
         return NamespaceUtil.wrapNamespace(this.getNamespace(), resource);
     }

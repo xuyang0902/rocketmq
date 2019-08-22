@@ -106,6 +106,8 @@ public class ConsumeQueue {
 
                     if (offset >= 0 && size > 0) {
                         mappedFileOffset = i + CQ_STORE_UNIT_SIZE;
+
+                        //计算commitlog使用到的最大的物理位置
                         this.maxPhysicOffset = offset + size;
                         if (isExtAddr(tagsCode)) {
                             maxExtAddr = tagsCode;
@@ -376,16 +378,17 @@ public class ConsumeQueue {
     }
 
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
+        //最大重试3次
         final int maxRetries = 30;
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
         for (int i = 0; i < maxRetries && canWrite; i++) {
             long tagsCode = request.getTagsCode();
+            //consumequeue额外写东西？？？ 默认关闭
             if (isExtWriteEnable()) {
                 ConsumeQueueExt.CqExtUnit cqExtUnit = new ConsumeQueueExt.CqExtUnit();
                 cqExtUnit.setFilterBitMap(request.getBitMap());
                 cqExtUnit.setMsgStoreTime(request.getStoreTimestamp());
                 cqExtUnit.setTagsCode(request.getTagsCode());
-
                 long extAddr = this.consumeQueueExt.put(cqExtUnit);
                 if (isExtAddr(extAddr)) {
                     tagsCode = extAddr;
@@ -394,6 +397,8 @@ public class ConsumeQueue {
                         topic, queueId, request.getCommitLogOffset());
                 }
             }
+
+            //放到queue中   commit的offset   消息大小 tag  消息队列的offset
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                 request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
@@ -420,6 +425,7 @@ public class ConsumeQueue {
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
         final long cqOffset) {
 
+        //如果是异常退出 服务重启后会吧commitlog的文件再王comsumequeue再发一遍，这样的话consumequeue接受过的就不要再存储了
         if (offset + size <= this.maxPhysicOffset) {
             log.warn("Maybe try to build consume queue repeatedly maxPhysicOffset={} phyOffset={}", maxPhysicOffset, offset);
             return true;

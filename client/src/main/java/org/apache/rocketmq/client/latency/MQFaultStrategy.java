@@ -89,6 +89,7 @@ public class MQFaultStrategy {
             return tpInfo.selectOneMessageQueue();
         }
 
+        //
         return tpInfo.selectOneMessageQueue(lastBrokerName);
     }
 

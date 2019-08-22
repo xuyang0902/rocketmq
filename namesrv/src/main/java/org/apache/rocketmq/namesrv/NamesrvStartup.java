@@ -137,12 +137,14 @@ public class NamesrvStartup {
             throw new IllegalArgumentException("NamesrvController is null");
         }
 
+        //初始化配置信息，线程，netty的一些配置
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();
             System.exit(-3);
         }
 
+        //jvm关闭钩子，释放资源
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {
@@ -151,6 +153,7 @@ public class NamesrvStartup {
             }
         }));
 
+        //开始
         controller.start();
 
         return controller;
