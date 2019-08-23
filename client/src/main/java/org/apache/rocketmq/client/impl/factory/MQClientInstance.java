@@ -135,6 +135,8 @@ public class MQClientInstance {
         this.nettyClientConfig = new NettyClientConfig();
         this.nettyClientConfig.setClientCallbackExecutorThreads(clientConfig.getClientCallbackExecutorThreads());
         this.nettyClientConfig.setUseTLS(clientConfig.isUseTLS());
+
+        //客户端处理器
         this.clientRemotingProcessor = new ClientRemotingProcessor(this);
         this.mQClientAPIImpl = new MQClientAPIImpl(this.nettyClientConfig, this.clientRemotingProcessor, rpcHook, clientConfig);
 
@@ -244,14 +246,19 @@ public class MQClientInstance {
                         this.mQClientAPIImpl.fetchNameServerAddr();
                     }
                     // Start request-response channel
+                    //rpc通信
                     this.mQClientAPIImpl.start();
                     // Start various schedule tasks
+                    //定时任务
                     this.startScheduledTask();
                     // Start pull service
+                    //拉消息？
                     this.pullMessageService.start();
                     // Start rebalance service
+                    //重平衡服务
                     this.rebalanceService.start();
                     // Start push service
+                    //发送消息
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
@@ -283,6 +290,8 @@ public class MQClientInstance {
             }, 1000 * 10, 1000 * 60 * 2, TimeUnit.MILLISECONDS);
         }
 
+
+        //定时从namesrv更新路由信息
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -300,7 +309,9 @@ public class MQClientInstance {
             @Override
             public void run() {
                 try {
+                    //清理下线的broker
                     MQClientInstance.this.cleanOfflineBroker();
+                    //发送心跳包给broker 包括发送端的group 消费端的group（从哪开始消费，消费的模式等等信息）
                     MQClientInstance.this.sendHeartbeatToAllBrokerWithLock();
                 } catch (Exception e) {
                     log.error("ScheduledTask sendHeartbeatToAllBroker exception", e);
@@ -308,6 +319,8 @@ public class MQClientInstance {
             }
         }, 1000, this.clientConfig.getHeartbeatBrokerInterval(), TimeUnit.MILLISECONDS);
 
+
+        //持久化消息消费的位置
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -993,6 +1006,7 @@ public class MQClientInstance {
     }
 
     public void doRebalance() {
+
         for (Map.Entry<String, MQConsumerInner> entry : this.consumerTable.entrySet()) {
             MQConsumerInner impl = entry.getValue();
             if (impl != null) {

@@ -42,6 +42,9 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 
 /**
  * Base class for rebalance algorithm
+ *
+ * 重平衡算法
+ *
  */
 public abstract class RebalanceImpl {
     protected static final InternalLogger log = ClientLogger.getLog();
@@ -258,6 +261,13 @@ public abstract class RebalanceImpl {
                 break;
             }
             case CLUSTERING: {
+                /**
+                 * 集群消费的重平衡
+                 * 获取topic对应的消费队列集合
+                 * 根据消费组和topic获取消费端集合
+                 *
+                 */
+
                 Set<MessageQueue> mqSet = this.topicSubscribeInfoTable.get(topic);
                 List<String> cidAll = this.mQClientFactory.findConsumerIdList(topic, consumerGroup);
                 if (null == mqSet) {
@@ -292,6 +302,9 @@ public abstract class RebalanceImpl {
                         return;
                     }
 
+                    /**
+                     * 本机负责消费哪几个消费队列
+                     */
                     Set<MessageQueue> allocateResultSet = new HashSet<MessageQueue>();
                     if (allocateResult != null) {
                         allocateResultSet.addAll(allocateResult);
@@ -328,19 +341,37 @@ public abstract class RebalanceImpl {
         }
     }
 
-    private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet,
+    private boolean updateProcessQueueTableInRebalance(final String topic, final Set<MessageQueue> mqSet/*表示这台机器需要消费的队列*/,
         final boolean isOrder) {
         boolean changed = false;
+
+
+        /**
+         * 重平衡的过程中，怎么处理本来1队列对应A消费的，现在来了一台N  1队列要给N消费了。
+         *
+         * 1、老机器挪出
+         * 2、新机器接入
+         *
+         */
 
         Iterator<Entry<MessageQueue, ProcessQueue>> it = this.processQueueTable.entrySet().iterator();
         while (it.hasNext()) {
             Entry<MessageQueue, ProcessQueue> next = it.next();
+
+            /*
+             * 之前的mq队列
+             */
             MessageQueue mq = next.getKey();
             ProcessQueue pq = next.getValue();
 
             if (mq.getTopic().equals(topic)) {
+
+                /*
+                 * 新的负责的队列不包含老的，意味着，老的要退出了。要上报最后的offset，新的机器要接着消费的时候需要。
+                 */
                 if (!mqSet.contains(mq)) {
                     pq.setDropped(true);
+                    //保存offset信息到broker上去最新的offset
                     if (this.removeUnnecessaryMessageQueue(mq, pq)) {
                         it.remove();
                         changed = true;
@@ -366,18 +397,28 @@ public abstract class RebalanceImpl {
             }
         }
 
+        /**
+         * 拉消息的请求
+         */
         List<PullRequest> pullRequestList = new ArrayList<PullRequest>();
         for (MessageQueue mq : mqSet) {
             if (!this.processQueueTable.containsKey(mq)) {
+
+                //如果是顺序消费 要从broker端lock住这个队列
                 if (isOrder && !this.lock(mq)) {
                     log.warn("doRebalance, {}, add a new mq failed, {}, because lock failed", consumerGroup, mq);
                     continue;
                 }
 
+                //移除脏的消费位置
                 this.removeDirtyOffset(mq);
+
                 ProcessQueue pq = new ProcessQueue();
+
+                //从broker拉取最新的可以消费的位置
                 long nextOffset = this.computePullFromWhere(mq);
                 if (nextOffset >= 0) {
+                    //放到处理队列表中
                     ProcessQueue pre = this.processQueueTable.putIfAbsent(mq, pq);
                     if (pre != null) {
                         log.info("doRebalance, {}, mq already exists, {}", consumerGroup, mq);
@@ -397,6 +438,7 @@ public abstract class RebalanceImpl {
             }
         }
 
+        //分发拉消息的请求
         this.dispatchPullRequest(pullRequestList);
 
         return changed;

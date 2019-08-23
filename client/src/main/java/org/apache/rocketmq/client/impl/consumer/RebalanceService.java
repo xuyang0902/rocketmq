@@ -38,6 +38,11 @@ public class RebalanceService extends ServiceThread {
 
         while (!this.isStopped()) {
             this.waitForRunning(waitInterval);
+
+
+            /**
+             * 每隔多久重平衡
+             */
             this.mqClientFactory.doRebalance();
         }
 
