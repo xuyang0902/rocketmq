@@ -324,6 +324,7 @@ public class HAService {
     }
 
     class HAClient extends ServiceThread {
+        //一次最多读4M数据
         private static final int READ_MAX_BUFFER_SIZE = 1024 * 1024 * 4;
         private final AtomicReference<String> masterAddress = new AtomicReference<>();
         private final ByteBuffer reportOffset = ByteBuffer.allocate(8);
@@ -414,6 +415,7 @@ public class HAService {
                             return false;
                         }
                     } else if (readSize == 0) {
+                        //最多IO读取三次
                         if (++readSizeZeroTimes >= 3) {
                             break;
                         }

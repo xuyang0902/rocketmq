@@ -57,6 +57,7 @@ public class AllocateMappedFileService extends ServiceThread {
             }
         }
 
+        //放第一个请求
         AllocateRequest nextReq = new AllocateRequest(nextFilePath, fileSize);
         boolean nextPutOK = this.requestTable.putIfAbsent(nextFilePath, nextReq) == null;
 
@@ -74,6 +75,7 @@ public class AllocateMappedFileService extends ServiceThread {
             canSubmitRequests--;
         }
 
+        //放第二个请求
         AllocateRequest nextNextReq = new AllocateRequest(nextNextFilePath, fileSize);
         boolean nextNextPutOK = this.requestTable.putIfAbsent(nextNextFilePath, nextNextReq) == null;
         if (nextNextPutOK) {
@@ -94,6 +96,7 @@ public class AllocateMappedFileService extends ServiceThread {
             return null;
         }
 
+        //异步请求  直接看run方法 创建mmapedfile  coutdownlatch等待 5秒
         AllocateRequest result = this.requestTable.get(nextFilePath);
         try {
             if (result != null) {
@@ -170,9 +173,17 @@ public class AllocateMappedFileService extends ServiceThread {
                         mappedFile.init(req.getFilePath(), req.getFileSize(), messageStore.getTransientStorePool());
                     } catch (RuntimeException e) {
                         log.warn("Use default implementation.");
+
+                        /**
+                         * 使用堆外内存，
+                         *
+                         * MappedFiled中多了一块堆外内存，其他和没有用池一样
+                         */
                         mappedFile = new MappedFile(req.getFilePath(), req.getFileSize(), messageStore.getTransientStorePool());
                     }
                 } else {
+
+                    //没有用堆外内存的  很简单 使用mmap创建映射关系
                     mappedFile = new MappedFile(req.getFilePath(), req.getFileSize());
                 }
 
@@ -188,10 +199,18 @@ public class AllocateMappedFileService extends ServiceThread {
                     .getMappedFileSizeCommitLog()
                     &&
                     this.messageStore.getMessageStoreConfig().isWarmMapedFileEnable()) {
+
+
+                    /**
+                     * 文件大小 >= 1G 含义就是 如果是commitlog的话 且 开启了磁盘预热  预热磁盘
+                     *
+                     */
+
                     mappedFile.warmMappedFile(this.messageStore.getMessageStoreConfig().getFlushDiskType(),
                         this.messageStore.getMessageStoreConfig().getFlushLeastPagesWhenWarmMapedFile());
                 }
 
+                //文件创建好了
                 req.setMappedFile(mappedFile);
                 this.hasException = false;
                 isSuccess = true;

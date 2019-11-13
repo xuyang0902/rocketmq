@@ -32,8 +32,11 @@ public class StoreCheckpoint {
     private final RandomAccessFile randomAccessFile;
     private final FileChannel fileChannel;
     private final MappedByteBuffer mappedByteBuffer;
+    //  todo 还不是特别确定  猜测 commitlog的刷盘时间
     private volatile long physicMsgTimestamp = 0;
+    // 猜测是consumequeue的刷盘时间
     private volatile long logicsMsgTimestamp = 0;
+    // 索引文件的刷盘时间
     private volatile long indexMsgTimestamp = 0;
 
     public StoreCheckpoint(final String scpPath) throws IOException {

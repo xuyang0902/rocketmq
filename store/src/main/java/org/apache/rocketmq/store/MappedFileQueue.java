@@ -120,6 +120,10 @@ public class MappedFileQueue {
             long fileTailOffset = file.getFileFromOffset() + this.mappedFileSize;
             if (fileTailOffset > offset) {
                 if (offset >= file.getFileFromOffset()) {
+
+                    /**
+                     * 需要重新计算 当前操作的这个文件的写位置 commit位置  和刷盘位置
+                     */
                     file.setWrotePosition((int) (offset % this.mappedFileSize));
                     file.setCommittedPosition((int) (offset % this.mappedFileSize));
                     file.setFlushedPosition((int) (offset % this.mappedFileSize));
@@ -175,6 +179,7 @@ public class MappedFileQueue {
                 try {
                     MappedFile mappedFile = new MappedFile(file.getPath(), mappedFileSize);
 
+                    //写到的位置，刷盘的位置，commit的位置，load的时候默认就是文件size 后续会更新的
                     mappedFile.setWrotePosition(this.mappedFileSize);
                     mappedFile.setFlushedPosition(this.mappedFileSize);
                     mappedFile.setCommittedPosition(this.mappedFileSize);
@@ -215,15 +220,26 @@ public class MappedFileQueue {
         long createOffset = -1;
         MappedFile mappedFileLast = getLastMappedFile();
 
+        //最后一个文件为空的情况
         if (mappedFileLast == null) {
             createOffset = startOffset - (startOffset % this.mappedFileSize);
         }
 
+        //最后一个文件不是空 且 文件已经满了  那么创建的offset 就是最后一个文件的开始offset + 文件大小
         if (mappedFileLast != null && mappedFileLast.isFull()) {
             createOffset = mappedFileLast.getFileFromOffset() + this.mappedFileSize;
         }
 
         if (createOffset != -1 && needCreate) {
+
+            /**
+             * 开始创建mappedfile
+             * 一次创建2个？ 为什么一次要创建2个？预分配 性能好
+             *
+             * 文件名称分别为 createOffset 和 createOffset + mappedFileSize
+             *
+             */
+
             String nextFilePath = this.storePath + File.separator + UtilAll.offset2FileName(createOffset);
             String nextNextFilePath = this.storePath + File.separator
                 + UtilAll.offset2FileName(createOffset + this.mappedFileSize);
@@ -459,12 +475,14 @@ public class MappedFileQueue {
         if (mappedFile != null) {
             long tmpTimeStamp = mappedFile.getStoreTimestamp();
 
-            //刷盘
+            //刷盘 当前文件所在的位置
             int offset = mappedFile.flush(flushLeastPages);
 
-            //已经刷到哪了
+            //已经刷到哪 物理offset
             long where = mappedFile.getFileFromOffset() + offset;
             result = where == this.flushedWhere;
+
+            //刷盘的位置，这个其实是 物理的offset的
             this.flushedWhere = where;
             if (0 == flushLeastPages) {
                 this.storeTimestamp = tmpTimeStamp;

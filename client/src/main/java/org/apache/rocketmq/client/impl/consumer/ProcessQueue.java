@@ -99,6 +99,8 @@ public class ProcessQueue {
 
             try {
 
+                //15分钟还没有被消费  发回broker
+
                 pushConsumer.sendMessageBack(msg, 3);
                 log.info("send expire msg back. topic={}, msgId={}, storeHost={}, queueId={}, queueOffset={}", msg.getTopic(), msg.getMsgId(), msg.getStoreHost(), msg.getQueueId(), msg.getQueueOffset());
                 try {

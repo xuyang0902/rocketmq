@@ -100,12 +100,12 @@ public class ConsumeQueue {
             long maxExtAddr = 1;
             while (true) {
                 for (int i = 0; i < mappedFileSizeLogics; i += CQ_STORE_UNIT_SIZE) {
-                    long offset = byteBuffer.getLong();
-                    int size = byteBuffer.getInt();
+                    long offset = byteBuffer.getLong();//commitlog的offset
+                    int size = byteBuffer.getInt();//数据的大小
                     long tagsCode = byteBuffer.getLong();
 
                     if (offset >= 0 && size > 0) {
-                        mappedFileOffset = i + CQ_STORE_UNIT_SIZE;
+                        mappedFileOffset = i + CQ_STORE_UNIT_SIZE;//
 
                         //计算commitlog使用到的最大的物理位置
                         this.maxPhysicOffset = offset + size;
@@ -140,6 +140,12 @@ public class ConsumeQueue {
                 }
             }
 
+
+            /**
+             * 这个公式其实是 processOffset= processOffset+mappedFileOffset
+             * processOffset：当前文件的开始fromOffset
+             * mappedFileOffset：就是consumequeue处理到的offset每个消息定长20个字节
+             */
             processOffset += mappedFileOffset;
             this.mappedFileQueue.setFlushedWhere(processOffset);
             this.mappedFileQueue.setCommittedWhere(processOffset);

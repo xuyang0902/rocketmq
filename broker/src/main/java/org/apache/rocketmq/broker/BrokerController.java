@@ -927,6 +927,9 @@ public class BrokerController {
         topicConfigSerializeWrapper.setDataVersion(dataVersion);
         topicConfigSerializeWrapper.setTopicConfigTable(topicConfigTable);
 
+        /**
+         * broker 正式把topic的信息发给namesrv
+         */
         doRegisterBrokerAll(true, false, topicConfigSerializeWrapper);
     }
 

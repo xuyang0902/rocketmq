@@ -44,7 +44,7 @@ public class TransientStorePool {
     }
 
     /**
-     * It's a heavy init method.
+     * It's a heavy init method
      */
     public void init() {
         for (int i = 0; i < poolSize; i++) {

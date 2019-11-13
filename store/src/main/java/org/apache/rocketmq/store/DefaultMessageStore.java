@@ -215,15 +215,15 @@ public class DefaultMessageStore implements MessageStore {
                 this.indexService.load(lastExitOK);
 
                 /**
-                 * commitlog 最后刷盘的位置
-                 * consumequeue  计算出最后刷到consumequeue的commit的位置
-                 *  topic-queueId 计算出每个主题队列的最后刷盘的位置
+                 *  做正常退出和异常退出的恢复！！！
                  *
                  *  可能存在刷盘到commitlog的信息，没有刷到consumequeue，但是断电了
                  *  现阶段看，还有可能出现 没有flush到commitlog文件，但是flush到consumequeue了，这种消息又是怎么处理的？？
-                 *  从 ReputMessageService来看，  todo
+                 *
+                 *  从 ReputMessageService来看，
                  *  第一种已经到commitlog但是没有到consumequeue的 直接一个一个消息读出来再发到consumequeue就可以了
-                 *  第二种刷到consumequeue 但是commitlog没有刷盘的，重启丢数据的情况，这种情况有abort文件
+                 *  第二种刷到consumequeue 但是commitlog没有刷盘的，重启丢数据的情况，这种情况有abort文件，
+                 *  需要把consumerqueue这些无效的数据清除
                  *
                  */
                 this.recover(lastExitOK);
@@ -412,6 +412,7 @@ public class DefaultMessageStore implements MessageStore {
         }
     }
 
+    @Override
     public PutMessageResult putMessage(MessageExtBrokerInner msg) {
 
         //关闭就不能存储
@@ -691,6 +692,11 @@ public class DefaultMessageStore implements MessageStore {
                         long diff = maxOffsetPy - maxPhyOffsetPulling;
                         long memory = (long) (StoreUtil.TOTAL_PHYSICAL_MEMORY_SIZE
                             * (this.messageStoreConfig.getAccessMessageInMemoryMaxRatio() / 100.0));
+
+                        /**
+                         * 当消息消费的速度 很慢
+                         * 差距超过物理内存的百分之40 建议从slave拉消息
+                         */
                         getResult.setSuggestPullingFromSlave(diff > memory);
                     } finally {
 
@@ -1385,6 +1391,8 @@ public class DefaultMessageStore implements MessageStore {
                             this.getMessageStoreConfig().getMappedFileSizeConsumeQueue(),
                             this);
                         this.putConsumeQueue(topic, queueId, logic);
+
+                        //文件读取
                         if (!logic.load()) {
                             return false;
                         }
@@ -1404,7 +1412,9 @@ public class DefaultMessageStore implements MessageStore {
         long maxPhyOffsetOfConsumeQueue = this.recoverConsumeQueue();
 
         if (lastExitOK) {
-            //commit本身最后刷盘的位置
+            /**
+             * 正常退出
+             */
             this.commitLog.recoverNormally(maxPhyOffsetOfConsumeQueue);
         } else {
             /*
@@ -1413,7 +1423,9 @@ public class DefaultMessageStore implements MessageStore {
             this.commitLog.recoverAbnormally(maxPhyOffsetOfConsumeQueue);
         }
 
-        //每个topic队列最后刷盘的位置
+        /**
+         * 记下每个topic在对应的队列中 刷了多少个，，注意是个数
+         */
         this.recoverTopicQueueTable();
     }
 
@@ -1460,6 +1472,7 @@ public class DefaultMessageStore implements MessageStore {
             }
         }
 
+        //记下所有consumequeue中最大的那个commitlog的offset
         return maxPhysicOffset;
     }
 

@@ -710,7 +710,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
             /**
              * 1、发布消息不ok的时候，put一个默认的
-             * 2、且从nameSrv更新信息 【重点看这里】
+             * 2、且从nameSrv更新信息 【重点看这里】  这个方法默认直接从namesrv取
              * 3、从缓存中拿到发布消息
              */
 
@@ -723,6 +723,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {
             return topicPublishInfo;
         } else {
+            /**
+             * 如果远端没有手动创建topic 需要自动创建咯
+             */
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic, true, this.defaultMQProducer);
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
             return topicPublishInfo;

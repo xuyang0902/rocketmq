@@ -259,6 +259,11 @@ public class MQClientInstance {
                     this.rebalanceService.start();
                     // Start push service
                     //发送消息
+                    /**
+                     * 这里的defaultMQProducer  是构面MQClient的时候创建的  MixAll.CLIENT_INNER_PRODUCER_GROUP
+                     *
+                     * 这个defaultMQProducer也会有一个mqClient
+                     */
                     this.defaultMQProducer.getDefaultMQProducerImpl().start(false);
                     log.info("the client factory [{}] start OK", this.clientId);
                     this.serviceState = ServiceState.RUNNING;
@@ -383,6 +388,12 @@ public class MQClientInstance {
             }
         }
 
+        /**
+         *
+         * 所有消费者 生成这 需要的topic 集合一下 发给namesrv 更新下来
+         *
+         * 这里就是单纯的拉下来了
+         */
         for (String topic : topicList) {
             this.updateTopicRouteInfoFromNameServer(topic);
         }
@@ -638,10 +649,19 @@ public class MQClientInstance {
                 try {
                     TopicRouteData topicRouteData;
                     if (isDefault && defaultMQProducer != null) {
+
+                        /**
+                         * 获取自动创建的topic路由数据
+                         */
+
                         topicRouteData = this.mQClientAPIImpl.getDefaultTopicRouteInfoFromNameServer(defaultMQProducer.getCreateTopicKey(),
                             1000 * 3);
                         if (topicRouteData != null) {
                             for (QueueData data : topicRouteData.getQueueDatas()) {
+
+                                /**
+                                 * 客户端要判断下，队列取 服务端默认返回8  客户端默认4 两者中偏小的哪一个
+                                 */
                                 int queueNums = Math.min(defaultMQProducer.getDefaultTopicQueueNums(), data.getReadQueueNums());
                                 data.setReadQueueNums(queueNums);
                                 data.setWriteQueueNums(queueNums);
@@ -1081,6 +1101,7 @@ public class MQClientInstance {
             slave = brokerId != MixAll.MASTER_ID;
             found = brokerAddr != null;
 
+            //没有找到的话 map中找下一台
             if (!found && !onlyThisBroker) {
                 Entry<Long, String> entry = map.entrySet().iterator().next();
                 brokerAddr = entry.getValue();

@@ -44,6 +44,7 @@ public class PullConsumer {
                     putMessageQueueOffset(mq, pullResult.getNextBeginOffset());
                     switch (pullResult.getPullStatus()) {
                         case FOUND:
+
                             break;
                         case NO_MATCHED_MSG:
                             break;

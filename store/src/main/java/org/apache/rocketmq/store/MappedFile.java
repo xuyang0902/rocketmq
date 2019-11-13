@@ -17,6 +17,7 @@
 package org.apache.rocketmq.store;
 
 import com.sun.jna.NativeLong;
+import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -56,7 +57,7 @@ public class MappedFile extends ReferenceResource {
     protected final AtomicInteger wrotePosition = new AtomicInteger(0);
     //commit的位置   commit的意思是 从writebuffer放到fileChannel
     protected final AtomicInteger committedPosition = new AtomicInteger(0);
-    //输盘的位置
+    //刷盘的位置
     private final AtomicInteger flushedPosition = new AtomicInteger(0);
     //文件大小
     protected int fileSize;
@@ -244,7 +245,10 @@ public class MappedFile extends ReferenceResource {
             } else {
                 return new AppendMessageResult(AppendMessageStatus.UNKNOWN_ERROR);
             }
+
+            //写位置增加 （仅仅是指在文件中的位置）
             this.wrotePosition.addAndGet(result.getWroteBytes());
+            //更新mappedfile的存储时间戳
             this.storeTimestamp = result.getStoreTimestamp();
             return result;
         }
@@ -523,10 +527,21 @@ public class MappedFile extends ReferenceResource {
 
     public void warmMappedFile(FlushDiskType type, int pages) {
         long beginTime = System.currentTimeMillis();
+
+        //文件映射的内存空间
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
         int flush = 0;
         long time = System.currentTimeMillis();
         for (int i = 0, j = 0; i < this.fileSize; i += MappedFile.OS_PAGE_SIZE, j++) {
+
+            /**
+             * 每隔4K 写一个字节
+             *
+             * 如果是同步刷盘的mappedfile    每隔 pages 1024/4*16 = 4096个数据页 刷盘一次
+             *
+             * 且没写1000次 sleep（0） 让出cpu执行权
+             *
+             */
             byteBuffer.put(i, (byte) 0);
             // force flush when flush disk type is sync
             if (type == FlushDiskType.SYNC_FLUSH) {
@@ -535,6 +550,7 @@ public class MappedFile extends ReferenceResource {
                     mappedByteBuffer.force();
                 }
             }
+
 
             // prevent gc
             if (j % 1000 == 0) {
@@ -556,6 +572,10 @@ public class MappedFile extends ReferenceResource {
         }
         log.info("mapped file warm-up done. mappedFile={}, costTime={}", this.getFileName(),
             System.currentTimeMillis() - beginTime);
+
+        /**
+         * 建议os把mmap这块磁盘空间加载到内存 且尽量别把这块区域换到交换区
+         */
 
         this.mlock();
     }
@@ -589,11 +609,24 @@ public class MappedFile extends ReferenceResource {
         final long address = ((DirectBuffer) (this.mappedByteBuffer)).address();
         Pointer pointer = new Pointer(address);
         {
+
+            /**
+             * 将锁住指定的内存区域避免被操作系统调到swap空间中
+             */
             int ret = LibC.INSTANCE.mlock(pointer, new NativeLong(this.fileSize));
             log.info("mlock {} {} {} ret = {} time consuming = {}", address, this.fileName, this.fileSize, ret, System.currentTimeMillis() - beginTime);
         }
 
         {
+
+            /**
+             * 一般来说通过mmap建立起的内存文件在刚开始并没有将文件内容映射进来，
+             * 而是只建立一个映射关系，而当你读相对应区域的时候，它第一次还是会去读磁盘，
+             * 而我们前面说了，读写基本上都只是和Page Cache打交道，
+             * 那么当读相对应页没有拿到数据的时候，系统将会产生一个缺页异常，
+             * 然后去读磁盘中的内容，最后写回Page Cache然后再次读取Page Cache然后返回，
+             * 而madvise的作用是建议OS一次性先将一段数据读入到映射内存区域，这样就减少了缺页异常的产生
+             */
             int ret = LibC.INSTANCE.madvise(pointer, new NativeLong(this.fileSize), LibC.MADV_WILLNEED);
             log.info("madvise {} {} {} ret = {} time consuming = {}", address, this.fileName, this.fileSize, ret, System.currentTimeMillis() - beginTime);
         }

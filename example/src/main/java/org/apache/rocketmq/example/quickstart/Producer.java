@@ -31,7 +31,7 @@ public class Producer {
         /*
          * Instantiate with a producer group name.
          */
-        DefaultMQProducer producer = new DefaultMQProducer("produceGroupYuren");
+        DefaultMQProducer producer = new DefaultMQProducer("pGroupTest");
 
         /*
          * Specify name server addresses.
@@ -54,20 +54,36 @@ public class Producer {
 
         try {
 
-            /*
+            int loop = 500;
+
+            while(loop-- > 0){
+                   /*
              * Create a message instance, specifying topic, tag and message body.
              */
-            Message msg = new Message("TopicYuren" /* Topic */,
-                    "TagA" /* Tag */,
-                    ("Hello RocketMQ ").getBytes(RemotingHelper.DEFAULT_CHARSET) /* Message body */
-            );
+                Message msg = new Message("TBJ" /* Topic */,
+                        "TagA" /* Tag */,
+                        ("Hello RocketMQ " + loop).getBytes(RemotingHelper.DEFAULT_CHARSET) /* Message body */
+                );
+
+                msg.setKeys("yuren");
 
             /*
              * Call send message to deliver message to one of brokers.
              */
-            SendResult sendResult = producer.send(msg);
+                SendResult sendResult = producer.send(msg);
 
-            System.out.printf("%s%n", sendResult);
+                System.out.printf("%s%n", sendResult);
+
+                try{
+
+                    Thread.sleep(1000 * 5);
+                }catch (Exception e){
+
+                }
+
+            }
+
+
         } catch (Exception e) {
             e.printStackTrace();
             Thread.sleep(1000);
